@@ -7,7 +7,9 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "migrate": "node src/database/migrate.js",
-    "seed": "node src/database/seed.js"
+    "seed": "node src/database/seed.js",
+    "db:start": "\"C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe\" -D \"../local_db\" -l \"../local_db/logfile\" start",
+    "db:stop": "\"C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe\" -D \"../local_db\" stop"
   },
   "keywords": [
     "collaboration",

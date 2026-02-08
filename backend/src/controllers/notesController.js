@@ -6,13 +6,13 @@ class NotesController {
   // Get all notes for current user
   getNotes = asyncHandler(async (req, res) => {
     const { limit = 50, offset = 0, search } = req.query;
-    
+
     const notes = await NoteModel.getUserNotes(req.user.id, {
       limit: parseInt(limit),
       offset: parseInt(offset),
       search
     });
-    
+
     res.json({
       success: true,
       data: {
@@ -29,9 +29,9 @@ class NotesController {
   // Get single note
   getNote = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    
+
     const note = await NoteModel.findById(id, req.user.id);
-    
+
     res.json({
       success: true,
       data: { note }
@@ -41,13 +41,13 @@ class NotesController {
   // Create new note
   createNote = asyncHandler(async (req, res) => {
     const { title, content } = req.validatedBody;
-    
+
     const note = await NoteModel.create({
       title,
       content,
       ownerId: req.user.id
     });
-    
+
     // Log activity
     await ActivityLogModel.log({
       userId: req.user.id,
@@ -55,7 +55,7 @@ class NotesController {
       action: 'note_created',
       details: { title }
     });
-    
+
     res.status(201).json({
       success: true,
       message: 'Note created successfully',
@@ -67,9 +67,9 @@ class NotesController {
   updateNote = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { title, content } = req.validatedBody;
-    
+
     const note = await NoteModel.update(id, req.user.id, { title, content });
-    
+
     // Log activity
     await ActivityLogModel.log({
       userId: req.user.id,
@@ -77,7 +77,7 @@ class NotesController {
       action: 'note_updated',
       details: { title: note.title }
     });
-    
+
     res.json({
       success: true,
       message: 'Note updated successfully',
@@ -88,10 +88,10 @@ class NotesController {
   // Delete note
   deleteNote = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    
+
     const note = await NoteModel.findById(id, req.user.id);
     await NoteModel.delete(id, req.user.id);
-    
+
     // Log activity
     await ActivityLogModel.log({
       userId: req.user.id,
@@ -99,7 +99,7 @@ class NotesController {
       action: 'note_deleted',
       details: { title: note.title }
     });
-    
+
     res.json({
       success: true,
       message: 'Note deleted successfully'
@@ -109,13 +109,13 @@ class NotesController {
   // Search notes
   searchNotes = asyncHandler(async (req, res) => {
     const { q: search, limit = 50, offset = 0 } = req.validatedQuery;
-    
+
     const notes = await NoteModel.getUserNotes(req.user.id, {
       search,
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
-    
+
     res.json({
       success: true,
       data: {
@@ -133,9 +133,9 @@ class NotesController {
   // Get note collaborators
   getCollaborators = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    
+
     const collaborators = await NoteModel.getCollaborators(id, req.user.id);
-    
+
     res.json({
       success: true,
       data: { collaborators }
@@ -145,15 +145,43 @@ class NotesController {
   // Add collaborator
   addCollaborator = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { userId, permission } = req.validatedBody;
-    
+    let { userId, email, permission } = req.validatedBody;
+
+    // If email provided instead of userId, find the user
+    if (!userId && email) {
+      const UserModel = require('../models/User');
+      const user = await UserModel.findByEmail(email);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User with this email not found'
+        });
+      }
+      userId = user.id;
+    }
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Either userId or email is required'
+      });
+    }
+
+    // Prevent adding self
+    if (userId === req.user.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot add yourself as collaborator'
+      });
+    }
+
     const collaborator = await NoteModel.addCollaborator(
       id,
       req.user.id,
       userId,
       permission
     );
-    
+
     // Log activity
     await ActivityLogModel.log({
       userId: req.user.id,
@@ -161,11 +189,15 @@ class NotesController {
       action: 'collaborator_added',
       details: { collaboratorId: userId, permission }
     });
-    
+
+    // Fetch full collaborator details including name/email for frontend
+    const updatedCollaborators = await NoteModel.getCollaborators(id, req.user.id);
+    const addedCollaborator = updatedCollaborators.find(c => c.user_id === userId);
+
     res.status(201).json({
       success: true,
       message: 'Collaborator added successfully',
-      data: { collaborator }
+      data: { collaborator: addedCollaborator || collaborator }
     });
   });
 
@@ -173,14 +205,22 @@ class NotesController {
   updateCollaborator = asyncHandler(async (req, res) => {
     const { id, collaboratorId } = req.params;
     const { permission } = req.validatedBody;
-    
+
+    // Validate permission
+    if (!['editor', 'viewer'].includes(permission)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid permission. Must be "editor" or "viewer"'
+      });
+    }
+
     const collaborator = await NoteModel.updateCollaborator(
       id,
       req.user.id,
       collaboratorId,
       permission
     );
-    
+
     // Log activity
     await ActivityLogModel.log({
       userId: req.user.id,
@@ -188,7 +228,7 @@ class NotesController {
       action: 'collaborator_updated',
       details: { collaboratorId, permission }
     });
-    
+
     res.json({
       success: true,
       message: 'Collaborator updated successfully',
@@ -199,9 +239,9 @@ class NotesController {
   // Remove collaborator
   removeCollaborator = asyncHandler(async (req, res) => {
     const { id, collaboratorId } = req.params;
-    
+
     await NoteModel.removeCollaborator(id, req.user.id, collaboratorId);
-    
+
     // Log activity
     await ActivityLogModel.log({
       userId: req.user.id,
@@ -209,7 +249,7 @@ class NotesController {
       action: 'collaborator_removed',
       details: { collaboratorId }
     });
-    
+
     res.json({
       success: true,
       message: 'Collaborator removed successfully'
@@ -220,16 +260,16 @@ class NotesController {
   getNoteActivities = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { limit = 50, offset = 0 } = req.query;
-    
+
     // Check if user has access to note
     await NoteModel.findById(id, req.user.id);
-    
+
     const activities = await ActivityLogModel.getNoteActivities(
       id,
       parseInt(limit),
       parseInt(offset)
     );
-    
+
     res.json({
       success: true,
       data: {

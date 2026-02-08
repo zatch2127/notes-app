@@ -26,9 +26,10 @@ const schemas = {
   },
   collaborator: {
     add: Joi.object({
-      userId: Joi.string().uuid().required(),
+      userId: Joi.string().uuid().optional(),
+      email: Joi.string().email().optional(),
       permission: Joi.string().valid('editor', 'viewer').required()
-    }),
+    }).or('userId', 'email'),
     update: Joi.object({
       permission: Joi.string().valid('editor', 'viewer').required()
     })
