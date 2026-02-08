@@ -21,7 +21,21 @@ const server = http.createServer(app);
 // Initialize Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || '*',
+    origin: (origin, callback) => {
+      // Allow requests with no origin
+      if (!origin) return callback(null, true);
+
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        origin.startsWith('http://localhost:') ||
+        origin.endsWith('.netlify.app');
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -39,10 +53,32 @@ app.use(helmet({
 }));
 
 // CORS configuration
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://zaidtask.netlify.app'
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Check if origin is allowed
+    const isAllowed =
+      allowedOrigins.includes(origin) ||
+      origin.startsWith('http://localhost:') ||  // Allow any local port
+      origin.endsWith('.netlify.app');           // Allow Netlify deploy previews
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
