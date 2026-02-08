@@ -85,10 +85,6 @@ const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
   console.log(`
-╔═══════════════════════════════════════════════════════╗
-║  Collaborative Notes API Server                      ║
-╚═══════════════════════════════════════════════════════╝
-
 🚀 Server running on port ${PORT}
 📡 Environment: ${process.env.NODE_ENV || 'development'}
 🔌 WebSocket enabled
